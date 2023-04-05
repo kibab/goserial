@@ -10,11 +10,13 @@ import (
 )
 
 func TestConnection(t *testing.T) {
+	// TODO this could also be done using socat port-to-port emulation
 	port0 := os.Getenv("PORT0")
 	port1 := os.Getenv("PORT1")
 	if port0 == "" || port1 == "" {
 		t.Skip("Skipping test because PORT0 or PORT1 environment variable is not set")
 	}
+
 	c0 := &Config{Name: port0, Baud: 115200}
 	c1 := &Config{Name: port1, Baud: 115200}
 
@@ -29,6 +31,8 @@ func TestConnection(t *testing.T) {
 	}
 
 	ch := make(chan int, 1)
+
+	// FIXME SA2002
 	go func() {
 		buf := make([]byte, 128)
 		var readCount int
@@ -61,7 +65,10 @@ func TestConnection(t *testing.T) {
 	time.Sleep(time.Second / 10)
 
 	ch <- 0
-	s1.Write([]byte(" ")) // We could be blocked in the read without this
+	_, err = s1.Write([]byte(" ")) // We could be blocked in the read without this
+	if err != nil {
+		t.Fatalf("error on write to serial port 1; %v", err)
+	}
 	c := <-ch
 	exp := 5
 	if c >= exp {
