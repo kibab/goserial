@@ -1,6 +1,7 @@
+//go:build !windows && !linux && cgo
 // +build !windows,!linux,cgo
 
-package serial
+package goserial
 
 // #include <termios.h>
 // #include <unistd.h>
