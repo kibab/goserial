@@ -12,6 +12,8 @@ import (
 	"unsafe"
 )
 
+const errTimeout = syscall.Errno(1460)
+
 type Port struct {
 	f  *os.File
 	fd syscall.Handle
@@ -316,12 +318,17 @@ func newOverlapped() (*syscall.Overlapped, error) {
 
 func getOverlappedResult(h syscall.Handle, overlapped *syscall.Overlapped) (int, error) {
 	var n int
-	r, _, err := syscall.Syscall6(nGetOverlappedResult, 4,
+	_, _, errNo := syscall.Syscall6(nGetOverlappedResult, 4,
 		uintptr(h),
 		uintptr(unsafe.Pointer(overlapped)),
 		uintptr(unsafe.Pointer(&n)), 1, 0, 0)
-	if r == 0 {
-		return n, err
+
+	if errNo == errTimeout {
+		return 0, io.EOF
+	}
+
+	if errNo != 0 {
+		return n, errNo
 	}
 
 	return n, nil
