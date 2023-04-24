@@ -4,7 +4,7 @@ the serial port as a stream of bytes.
 
 It aims to have the same API on all platforms, including windows.  As
 an added bonus, the windows package does not use cgo, so you can cross
-compile for windows from another platform.  Unfortunately goinstall
+compile for windows from another platform.  Unfortunately `goinstall`
 does not currently let you cross compile so you will have to do it
 manually:
 
@@ -57,6 +57,9 @@ package goserial
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -161,6 +164,57 @@ func posixTimeoutValues(readTimeout time.Duration) (vmin uint8, vtime uint8) {
 		}
 	}
 	return minBytesToRead, uint8(readTimeoutInDeci)
+}
+
+// FindSerial tries to discover serial ports on your system
+func FindSerial() ([]string, error) {
+	var err error
+	var ports []string
+	var validated []string
+	var os = runtime.GOOS
+	switch os {
+	case "linux":
+		ports, err = filepath.Glob("/dev/tty[A-Za-z]*")
+		if err != nil {
+			return ports, nil
+		}
+		return checkPorts(ports), nil
+	case "darwin":
+		ports, err = filepath.Glob("/dev/tty.*")
+		if err != nil {
+			return ports, nil
+		}
+		return checkPorts(ports), nil
+	case "windows":
+		for i := 1; i < 256; i++ {
+			ports = append(ports, fmt.Sprintf("COM%v", i))
+		}
+		return checkPorts(ports), nil
+	}
+
+	return validated, fmt.Errorf("FindSerial not implemented for %v", os)
+}
+
+// validate a specific serial port by setting it up
+func validate(port string) error {
+	cfg := &Config{Name: port}
+	f, err := OpenPort(cfg)
+	if err != nil {
+		return err
+	}
+	f.Close()
+	return nil
+}
+
+// checkPorts validates multiple ports from a slice
+func checkPorts(ports []string) []string {
+	var validated []string
+	for _, p := range ports {
+		if err := validate(p); err == nil {
+			validated = append(validated, p)
+		}
+	}
+	return validated
 }
 
 // func SendBreak()

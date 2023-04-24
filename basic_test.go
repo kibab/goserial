@@ -4,13 +4,16 @@
 package goserial
 
 import (
+	"log"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestConnection(t *testing.T) {
-	// TODO this could also be done using socat port-to-port emulation
+	// TODO : this could also be done using socat port-to-port emulation
+	// that would make the test at least somewhat less system-specific
 	port0 := os.Getenv("PORT0")
 	port1 := os.Getenv("PORT1")
 	if port0 == "" || port1 == "" {
@@ -33,6 +36,7 @@ func TestConnection(t *testing.T) {
 	ch := make(chan int, 1)
 
 	// FIXME SA2002
+	// return the error on a channel
 	go func() {
 		buf := make([]byte, 128)
 		var readCount int
@@ -74,4 +78,13 @@ func TestConnection(t *testing.T) {
 	if c >= exp {
 		t.Fatalf("Expected less than %v read, got %v", exp, c)
 	}
+}
+
+func TestFindSerial(t *testing.T) {
+	found, err := FindSerial()
+	os := runtime.GOOS
+	if err != nil && (os == "windows" || os == "darwin" || os == "linux") {
+		t.Fatalf("error discovering serial ports; %v", err)
+	}
+	log.Println(found, err)
 }
