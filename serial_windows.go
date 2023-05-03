@@ -5,6 +5,7 @@ package goserial
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"syscall"
