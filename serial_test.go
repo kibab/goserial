@@ -12,8 +12,10 @@ import (
 )
 
 func TestConnection(t *testing.T) {
+
 	// TODO : this could also be done using socat port-to-port emulation
 	// that would make the test at least somewhat less system-specific
+
 	port0 := os.Getenv("PORT0")
 	port1 := os.Getenv("PORT1")
 	if port0 == "" || port1 == "" {
