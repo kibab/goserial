@@ -4,18 +4,16 @@
 package goserial
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/exec"
 	"runtime"
 	"testing"
 	"time"
 )
 
 func TestConnection(t *testing.T) {
-
-	// TODO : this could also be done using socat port-to-port emulation
-	// that would make the test at least somewhat less system-specific
-
 	port0 := os.Getenv("PORT0")
 	port1 := os.Getenv("PORT1")
 	if port0 == "" || port1 == "" {
@@ -82,6 +80,73 @@ func TestConnection(t *testing.T) {
 	}
 }
 
+func TestConnectionLinux(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping socat test because not on Linux")
+	}
+	_, err := exec.LookPath("socat")
+	if err != nil {
+		t.Skip("Skipping test because socat was not found in PATH")
+	}
+
+	// timeout is a fallback here, if something fails
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	wd, _ := os.Getwd()
+	cmd := "socat"
+	args := []string{"-d", "-d", "pty,raw,echo=0,link=/tmp/pty0", "pty,raw,echo=0,link=/tmp/pty1"}
+
+	err = startCmd(ctx, wd, cmd, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	port0 := &Config{
+		Name:        "/tmp/pty0",
+		Baud:        9600,
+		ReadTimeout: time.Duration(time.Second * 3),
+		Size:        8,
+	}
+	port1 := &Config{
+		Name:        "/tmp/pty1",
+		Baud:        9600,
+		ReadTimeout: time.Duration(time.Second * 3),
+		Size:        8,
+	}
+
+	stream0, err := OpenPort(port0)
+	if err != nil {
+		t.Fatal("could not setup connection", err)
+	}
+	stream1, err := OpenPort(port1)
+	if err != nil {
+		t.Fatal("could not setup connection", err)
+	}
+
+	want := []byte("Hello, World!")
+	nIn, err := stream1.Write(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// stream is buffered, so we can read in sequence:
+	buf := make([]byte, 1024)
+	nOut, err := stream0.Read(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if nOut != nIn {
+		t.Fatalf("sent %v bytes, got %v", nIn, nOut)
+	}
+
+	have := buf[:nOut]
+	if !testEq(have, want) {
+		t.Fatal("read data does not match written data")
+	}
+
+	cancel()
+}
+
 func TestFindSerial(t *testing.T) {
 	found, err := FindSerial()
 	os := runtime.GOOS
@@ -89,4 +154,22 @@ func TestFindSerial(t *testing.T) {
 		t.Fatalf("error discovering serial ports; %v", err)
 	}
 	log.Println(found, err)
+}
+
+func startCmd(ctx context.Context, wd, cmd string, args ...string) error {
+	ecmd := exec.CommandContext(ctx, cmd, args...)
+	ecmd.Dir = wd
+	return ecmd.Start()
+}
+
+func testEq(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
