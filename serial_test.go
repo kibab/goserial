@@ -84,6 +84,8 @@ func TestConnection(t *testing.T) {
 
 func TestConnectionLinux(t *testing.T) {
 	if runtime.GOOS != "linux" {
+		// there is a port of socat to Windows, but it seems to rely on cygwin
+		// not sure about Mac
 		t.Skip("skipping socat test because not on Linux")
 	}
 	_, err := exec.LookPath("socat")
