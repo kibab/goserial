@@ -17,7 +17,7 @@ func TestConnection(t *testing.T) {
 	port0 := os.Getenv("PORT0")
 	port1 := os.Getenv("PORT1")
 	if port0 == "" || port1 == "" {
-		t.Skip("Skipping test because PORT0 or PORT1 environment variable is not set")
+		t.Skip("skipping test because PORT0 and/or PORT1 environment variable is not set")
 	}
 
 	c0 := &Config{Name: port0, Baud: 115200}
@@ -46,7 +46,7 @@ func TestConnection(t *testing.T) {
 				t.Fatal(err)
 			}
 			readCount++
-			t.Logf("Read %v %v bytes: % 02x %s", readCount, n, buf[:n], buf[:n])
+			t.Logf("read %v %v bytes: % 02x %s", readCount, n, buf[:n], buf[:n])
 			select {
 			case <-ch:
 				ch <- readCount
@@ -76,17 +76,17 @@ func TestConnection(t *testing.T) {
 	c := <-ch
 	exp := 5
 	if c >= exp {
-		t.Fatalf("Expected less than %v read, got %v", exp, c)
+		t.Fatalf("expected less than %v read, got %v", exp, c)
 	}
 }
 
 func TestConnectionLinux(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("Skipping socat test because not on Linux")
+		t.Skip("skipping socat test because not on Linux")
 	}
 	_, err := exec.LookPath("socat")
 	if err != nil {
-		t.Skip("Skipping test because socat was not found in PATH")
+		t.Skip("skipping test because socat was not found in PATH")
 	}
 
 	// timeout is a fallback here, if something fails
