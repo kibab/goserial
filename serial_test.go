@@ -5,7 +5,6 @@ package goserial
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -35,14 +34,13 @@ func TestConnection(t *testing.T) {
 
 	ch := make(chan int, 1)
 
-	// FIXME SA2002
-	// return the error on a channel
 	go func() {
 		buf := make([]byte, 128)
 		var readCount int
 		for {
 			n, err := s2.Read(buf)
 			if err != nil {
+				// FIXME SA2002 - return the error on a channel?
 				t.Fatal(err)
 			}
 			readCount++
@@ -62,10 +60,14 @@ func TestConnection(t *testing.T) {
 	if _, err = s1.Write([]byte(" ")); err != nil {
 		t.Fatal(err)
 	}
+
+	// FIXME : the need for sleep here essentially means a data race
 	time.Sleep(time.Second)
 	if _, err = s1.Write([]byte("world")); err != nil {
 		t.Fatal(err)
 	}
+
+	// FIXME : the need for sleep here essentially means a data race
 	time.Sleep(time.Second / 10)
 
 	ch <- 0
@@ -148,12 +150,10 @@ func TestConnectionLinux(t *testing.T) {
 }
 
 func TestFindSerial(t *testing.T) {
-	found, err := FindSerial()
-	os := runtime.GOOS
-	if err != nil && (os == "windows" || os == "darwin" || os == "linux") {
+	_, err := FindSerial()
+	if err != nil {
 		t.Fatalf("error discovering serial ports; %v", err)
 	}
-	log.Println(found, err)
 }
 
 func startCmd(ctx context.Context, wd, cmd string, args ...string) error {
