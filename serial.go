@@ -4,7 +4,7 @@ the serial port as a stream of bytes.
 
 It aims to have the same API on all platforms, including windows.  As
 an added bonus, the windows package does not use cgo, so you can cross
-compile for windows from another platform.  Unfortunately `goinstall`
+compile for windows from another platform.  Unfortunately `go install`
 does not currently let you cross compile so you will have to do it
 manually:
 
@@ -21,7 +21,7 @@ parity, no hardware flow control, and no software flow control.  This
 works fine for many real devices and many faux serial devices
 including usb-to-serial converters and bluetooth serial ports.
 
-You may Read() and Write() simulantiously on the same connection (from
+You may Read() and Write() simultaneously on the same connection (from
 different goroutines).
 
 Example usage:
@@ -166,6 +166,10 @@ func posixTimeoutValues(readTimeout time.Duration) (vmin uint8, vtime uint8) {
 	return minBytesToRead, uint8(readTimeoutInDeci)
 }
 
+// func SendBreak()
+
+// func RegisterBreakHandler(func())
+
 // FindSerial tries to discover serial ports on your system
 func FindSerial() ([]string, error) {
 	var err error
@@ -216,7 +220,3 @@ func checkPorts(ports []string) []string {
 	}
 	return validated
 }
-
-// func SendBreak()
-
-// func RegisterBreakHandler(func())
