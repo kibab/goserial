@@ -1,6 +1,7 @@
 //go:build !windows && !linux && cgo
 // +build !windows,!linux,cgo
 
+// TODO : this should be package goserial_test so that the package is used as a user would use it
 package goserial
 
 // #include <termios.h>
@@ -15,7 +16,6 @@ import (
 	"os"
 	"syscall"
 	"time"
-	//"unsafe"
 )
 
 func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration) (p *Port, err error) {
@@ -146,7 +146,7 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 		return nil, err
 	}
 
-	//fmt.Println("Tweaking", name)
+	// fmt.Println("Tweaking", name)
 	r1, _, e := syscall.Syscall(syscall.SYS_FCNTL,
 		uintptr(f.Fd()),
 		uintptr(syscall.F_SETFL),
