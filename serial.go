@@ -65,8 +65,10 @@ import (
 
 const DefaultSize = 8 // Default value for Config.Size
 
-type StopBits byte
-type Parity byte
+type (
+	StopBits byte
+	Parity   byte
+)
 
 const (
 	Stop1     StopBits = 1
@@ -175,7 +177,7 @@ func FindSerial() ([]string, error) {
 	var err error
 	var ports []string
 	var validated []string
-	var os = runtime.GOOS
+	os := runtime.GOOS
 	switch os {
 	case "linux":
 		ports, err = filepath.Glob("/dev/tty[A-Za-z]*")
