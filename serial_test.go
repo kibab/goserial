@@ -5,6 +5,7 @@ package goserial
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -33,6 +34,7 @@ func TestConnection(t *testing.T) {
 	}
 
 	ch := make(chan int, 1)
+	errChan := make(chan error, 1)
 
 	go func() {
 		buf := make([]byte, 128)
@@ -40,8 +42,10 @@ func TestConnection(t *testing.T) {
 		for {
 			n, err := s2.Read(buf)
 			if err != nil {
+				errChan <- err
+				return
 				// FIXME SA2002 - return the error on a channel?
-				t.Fatal(err)
+				// t.Fatal(err)
 			}
 			readCount++
 			t.Logf("read %v %v bytes: % 02x %s", readCount, n, buf[:n], buf[:n])
@@ -53,6 +57,12 @@ func TestConnection(t *testing.T) {
 			}
 		}
 	}()
+
+	// TODO : verify that this works as intended:
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err = s1.Write([]byte("hello")); err != nil {
 		t.Fatal(err)
@@ -96,23 +106,31 @@ func TestConnectionLinux(t *testing.T) {
 	// timeout is a fallback here, if something fails
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	wd, _ := os.Getwd()
-	cmd := "socat"
-	args := []string{"-d", "-d", "pty,raw,echo=0,link=/tmp/pty0", "pty,raw,echo=0,link=/tmp/pty1"}
 
-	err = startCmd(ctx, wd, cmd, args...)
+	cmd := "socat"
+	args := []string{"pty,raw,echo=0,link=/tmp/pty0", "pty,raw,echo=0,link=/tmp/pty1"}
+
+	p, err := startCmd(ctx, wd, cmd, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		err := p.Signal(os.Interrupt)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	time.Sleep(time.Second) // cmd.Start() creates a race !!
 
 	port0 := &Config{
 		Name:        "/tmp/pty0",
-		Baud:        9600,
+		Baud:        115200,
 		ReadTimeout: time.Duration(time.Second * 3),
 		Size:        8,
 	}
 	port1 := &Config{
 		Name:        "/tmp/pty1",
-		Baud:        9600,
+		Baud:        115200,
 		ReadTimeout: time.Duration(time.Second * 3),
 		Size:        8,
 	}
@@ -138,6 +156,7 @@ func TestConnectionLinux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	log.Println(nOut)
 
 	if nOut != nIn {
 		t.Fatalf("sent %v bytes, got %v", nIn, nOut)
@@ -158,10 +177,21 @@ func TestFindSerial(t *testing.T) {
 	}
 }
 
-func startCmd(ctx context.Context, wd, cmd string, args ...string) error {
+func startCmd(ctx context.Context, wd, cmd string, args ...string) (*os.Process, error) {
 	ecmd := exec.CommandContext(ctx, cmd, args...)
 	ecmd.Dir = wd
-	return ecmd.Start()
+	err := ecmd.Start()
+	if err != nil {
+		return nil, err
+	}
+	return ecmd.Process, nil
+}
+
+func runCmd(ctx context.Context, wd, cmd string, args ...string) error {
+	ecmd := exec.CommandContext(ctx, cmd, args...)
+	ecmd.Dir = wd
+	err := ecmd.Run()
+	return err
 }
 
 func testEq(a, b []byte) bool {
