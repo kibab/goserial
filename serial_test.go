@@ -5,7 +5,7 @@ package goserial
 
 import (
 	"context"
-	"log"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -125,13 +125,13 @@ func TestConnectionLinux(t *testing.T) {
 	port0 := &Config{
 		Name:        "/tmp/pty0",
 		Baud:        115200,
-		ReadTimeout: time.Duration(time.Second * 3),
+		ReadTimeout: time.Duration(time.Second),
 		Size:        8,
 	}
 	port1 := &Config{
 		Name:        "/tmp/pty1",
 		Baud:        115200,
-		ReadTimeout: time.Duration(time.Second * 3),
+		ReadTimeout: time.Duration(time.Second),
 		Size:        8,
 	}
 
@@ -156,7 +156,6 @@ func TestConnectionLinux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Println(nOut)
 
 	if nOut != nIn {
 		t.Fatalf("sent %v bytes, got %v", nIn, nOut)
@@ -165,6 +164,25 @@ func TestConnectionLinux(t *testing.T) {
 	have := buf[:nOut]
 	if !testEq(have, want) {
 		t.Fatal("read data does not match written data")
+	}
+
+	// after flushing a serial interface, no bytes should be left:
+	_, err = stream1.Write(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// this again is a data race; need to wait a bit after writing before
+	// we can flush the bytes...
+	time.Sleep(time.Millisecond * 10)
+	stream0.Flush()
+
+	nOut, err = stream0.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatal(err)
+	}
+	if nOut != 0 {
+		t.Logf("expected zero bytes read after flush, got %v", nOut)
+		t.Fail()
 	}
 
 	cancel()
