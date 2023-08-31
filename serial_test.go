@@ -20,20 +20,22 @@ func TestConnection(t *testing.T) {
 		t.Skip("skipping test because PORT0 and/or PORT1 environment variable is not set")
 	}
 
-	c0 := &Config{Name: port0, Baud: 115200}
-	c1 := &Config{Name: port1, Baud: 115200}
+	c0 := &Config{Name: port0, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
+	c1 := &Config{Name: port1, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
 
 	s1, err := OpenPort(c0)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s1.Close()
 
 	s2, err := OpenPort(c1)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s2.Close()
 
-	ch := make(chan int, 1)
+	readChan := make(chan int, 1)
 	errChan := make(chan error, 1)
 
 	go func() {
@@ -43,26 +45,19 @@ func TestConnection(t *testing.T) {
 			n, err := s2.Read(buf)
 			if err != nil {
 				errChan <- err
+				close(readChan)
 				return
-				// FIXME SA2002 - return the error on a channel?
-				// t.Fatal(err)
 			}
 			readCount++
 			t.Logf("read %v %v bytes: % 02x %s", readCount, n, buf[:n], buf[:n])
 			select {
-			case <-ch:
-				ch <- readCount
-				close(ch)
+			case <-readChan:
+				readChan <- readCount
+				close(readChan)
 			default:
 			}
 		}
 	}()
-
-	// TODO : verify that this works as intended:
-	err = <-errChan
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	if _, err = s1.Write([]byte("hello")); err != nil {
 		t.Fatal(err)
@@ -71,24 +66,27 @@ func TestConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// FIXME : the need for sleep here essentially means a data race
-	time.Sleep(time.Second)
+	// setting a time delay here to simulate a subsequent write,
+	// causing a second read
+	time.Sleep(time.Millisecond * 10)
 	if _, err = s1.Write([]byte("world")); err != nil {
 		t.Fatal(err)
 	}
 
-	// FIXME : the need for sleep here essentially means a data race
-	time.Sleep(time.Second / 10)
-
-	ch <- 0
-	_, err = s1.Write([]byte(" ")) // We could be blocked in the read without this
+	readChan <- 0
+	_, err = s1.Write([]byte(" ")) // We could be blocked by s2.Read(buf) ...
 	if err != nil {
 		t.Fatalf("error on write to serial port 1; %v", err)
 	}
-	c := <-ch
+	c := <-readChan
 	exp := 5
 	if c >= exp {
 		t.Fatalf("expected less than %v read, got %v", exp, c)
+	}
+
+	err = <-errChan
+	if err != io.EOF {
+		t.Fatal(err)
 	}
 }
 
@@ -120,7 +118,11 @@ func TestConnectionLinux(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	time.Sleep(time.Second) // cmd.Start() creates a race !!
+
+	// cmd.Start() / starting socat creates a race !
+	// (FO) on my machine, 10 ms is a safe time to wait; might be different
+	// on your machine.
+	time.Sleep(time.Millisecond * 10)
 
 	port0 := &Config{
 		Name:        "/tmp/pty0",
@@ -195,6 +197,8 @@ func TestFindSerial(t *testing.T) {
 	}
 }
 
+// --- HELPERS ------------------------------------------------------------------------
+
 func startCmd(ctx context.Context, wd, cmd string, args ...string) (*os.Process, error) {
 	ecmd := exec.CommandContext(ctx, cmd, args...)
 	ecmd.Dir = wd
@@ -203,13 +207,6 @@ func startCmd(ctx context.Context, wd, cmd string, args ...string) (*os.Process,
 		return nil, err
 	}
 	return ecmd.Process, nil
-}
-
-func runCmd(ctx context.Context, wd, cmd string, args ...string) error {
-	ecmd := exec.CommandContext(ctx, cmd, args...)
-	ecmd.Dir = wd
-	err := ecmd.Run()
-	return err
 }
 
 func testEq(a, b []byte) bool {
