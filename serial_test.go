@@ -78,6 +78,8 @@ func TestConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error on write to serial port 1; %v", err)
 	}
+
+	// TODO : readChan might be closed; make use of this fact ?
 	c := <-readChan
 	exp := 5
 	if c >= exp {
