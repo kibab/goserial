@@ -13,7 +13,7 @@ import (
 )
 
 func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration) (p *Port, err error) {
-	var bauds = map[int]uint32{
+	bauds := map[int]uint32{
 		50:      unix.B50,
 		75:      unix.B75,
 		110:     unix.B110,
@@ -49,7 +49,7 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 	rate, ok := bauds[baud]
 
 	if !ok {
-		return nil, fmt.Errorf("Unrecognized baud rate")
+		return nil, fmt.Errorf("unrecognized baud rate")
 	}
 
 	f, err := os.OpenFile(name, unix.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0666)

@@ -1,7 +1,6 @@
 //go:build !windows && !linux && cgo
 // +build !windows,!linux,cgo
 
-// TODO : this should be package goserial_test so that the package is used as a user would use it
 package goserial
 
 // #include <termios.h>

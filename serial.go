@@ -177,28 +177,34 @@ func FindSerial() ([]string, error) {
 	var err error
 	var ports []string
 	var validated []string
-	os := runtime.GOOS
-	switch os {
+
+	myOS := runtime.GOOS // GOOS has to be set at compile-time
+
+	switch myOS {
+
 	case "linux":
 		ports, err = filepath.Glob("/dev/tty[A-Za-z]*")
 		if err != nil {
 			return ports, nil
 		}
 		return checkPorts(ports), nil
+
 	case "darwin":
 		ports, err = filepath.Glob("/dev/tty.*")
 		if err != nil {
 			return ports, nil
 		}
 		return checkPorts(ports), nil
+
 	case "windows":
 		for i := 1; i < 256; i++ {
 			ports = append(ports, fmt.Sprintf("COM%v", i))
 		}
 		return checkPorts(ports), nil
-	}
 
-	return validated, fmt.Errorf("FindSerial not implemented for %v", os)
+	default:
+		return validated, fmt.Errorf("FindSerial not implemented for %v", myOS)
+	}
 }
 
 // validate a specific serial port by setting it up
