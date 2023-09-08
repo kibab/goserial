@@ -1,7 +1,7 @@
 //go:build linux
 // +build linux
 
-package goserial
+package goserial_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	serial "github.com/FObersteiner/goserial"
 )
 
 func TestConnection(t *testing.T) {
@@ -20,16 +22,16 @@ func TestConnection(t *testing.T) {
 		t.Skip("skipping test because PORT0 and/or PORT1 environment variable is not set")
 	}
 
-	c0 := &Config{Name: port0, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
-	c1 := &Config{Name: port1, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
+	c0 := &serial.Config{Name: port0, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
+	c1 := &serial.Config{Name: port1, Baud: 115200, ReadTimeout: time.Duration(time.Second)}
 
-	s1, err := OpenPort(c0)
+	s1, err := serial.OpenPort(c0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s1.Close()
 
-	s2, err := OpenPort(c1)
+	s2, err := serial.OpenPort(c1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,24 +128,24 @@ func TestConnectionLinux(t *testing.T) {
 	// on your machine.
 	time.Sleep(time.Millisecond * 10)
 
-	port0 := &Config{
+	port0 := &serial.Config{
 		Name:        "/tmp/pty0",
 		Baud:        115200,
 		ReadTimeout: time.Duration(time.Second),
 		Size:        8,
 	}
-	port1 := &Config{
+	port1 := &serial.Config{
 		Name:        "/tmp/pty1",
 		Baud:        115200,
 		ReadTimeout: time.Duration(time.Second),
 		Size:        8,
 	}
 
-	stream0, err := OpenPort(port0)
+	stream0, err := serial.OpenPort(port0)
 	if err != nil {
 		t.Fatal("could not setup connection", err)
 	}
-	stream1, err := OpenPort(port1)
+	stream1, err := serial.OpenPort(port1)
 	if err != nil {
 		t.Fatal("could not setup connection", err)
 	}
@@ -193,7 +195,7 @@ func TestConnectionLinux(t *testing.T) {
 }
 
 func TestFindSerial(t *testing.T) {
-	_, err := FindSerial()
+	_, err := serial.FindSerial()
 	if err != nil {
 		t.Fatalf("error discovering serial ports; %v", err)
 	}
