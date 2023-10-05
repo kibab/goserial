@@ -1,4 +1,4 @@
-module github.com/FObersteiner/goserial
+module github.com/kibab/goserial
 
 go 1.16
 

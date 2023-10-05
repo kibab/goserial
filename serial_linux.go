@@ -12,7 +12,84 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration) (p *Port, err error) {
+func openPort(name string, baud int, databits byte, parity Parity, stopbits StopBits, readTimeout time.Duration) (*Port, error) {
+
+	f, err := os.OpenFile(name, unix.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err != nil && f != nil {
+			f.Close()
+		}
+	}()
+
+	p := &Port{
+		f:           f,
+		baud:        baud,
+		databits:    databits,
+		parity:      parity,
+		stopbits:    stopbits,
+		readTimeout: readTimeout,
+	}
+
+	if err = p.setParams(); err != nil {
+		return nil, err
+	}
+
+	if err = unix.SetNonblock(int(p.f.Fd()), false); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+type Port struct {
+	// We intentionally do not use an "embedded" struct so that we don't export File
+	f *os.File
+
+	baud        int
+	databits    byte
+	parity      Parity
+	stopbits    StopBits
+	readTimeout time.Duration
+}
+
+func (p *Port) Read(b []byte) (n int, err error) {
+	return p.f.Read(b)
+}
+
+func (p *Port) Write(b []byte) (n int, err error) {
+	return p.f.Write(b)
+}
+
+// Discards data written to the port but not transmitted, or data received but not read
+func (p *Port) Flush() error {
+	const TCFLSH = 0x540B
+	_, _, errno := unix.Syscall(
+		unix.SYS_IOCTL,
+		uintptr(p.f.Fd()),
+		uintptr(TCFLSH),
+		uintptr(unix.TCIOFLUSH),
+	)
+
+	if errno == 0 {
+		return nil
+	}
+	return errno
+}
+
+func (p *Port) Close() (err error) {
+	return p.f.Close()
+}
+
+func (p *Port) SetSpeed(baud int) error {
+	p.baud = baud
+	return p.setParams()
+}
+
+func (p *Port) setParams() error {
 	bauds := map[int]uint32{
 		50:      unix.B50,
 		75:      unix.B75,
@@ -46,26 +123,15 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 		4000000: unix.B4000000,
 	}
 
-	rate, ok := bauds[baud]
+	rate, ok := bauds[p.baud]
 
 	if !ok {
-		return nil, fmt.Errorf("unrecognized baud rate")
+		return fmt.Errorf("unrecognized baud rate")
 	}
-
-	f, err := os.OpenFile(name, unix.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0666)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err != nil && f != nil {
-			f.Close()
-		}
-	}()
 
 	// Base settings
 	cflagToUse := unix.CREAD | unix.CLOCAL | rate
-	switch databits {
+	switch p.databits {
 	case 5:
 		cflagToUse |= unix.CS5
 	case 6:
@@ -75,20 +141,20 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 	case 8:
 		cflagToUse |= unix.CS8
 	default:
-		return nil, ErrBadSize
+		return ErrBadSize
 	}
 	// Stop bits settings
-	switch stopbits {
+	switch p.stopbits {
 	case Stop1:
 		// default is 1 stop bit
 	case Stop2:
 		cflagToUse |= unix.CSTOPB
 	default:
 		// Don't know how to set 1.5
-		return nil, ErrBadStopBits
+		return ErrBadStopBits
 	}
 	// Parity settings
-	switch parity {
+	switch p.parity {
 	case ParityNone:
 		// default is no parity
 	case ParityOdd:
@@ -97,10 +163,10 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 	case ParityEven:
 		cflagToUse |= unix.PARENB
 	default:
-		return nil, ErrBadParity
+		return ErrBadParity
 	}
-	fd := f.Fd()
-	vmin, vtime := posixTimeoutValues(readTimeout)
+	fd := p.f.Fd()
+	vmin, vtime := posixTimeoutValues(p.readTimeout)
 	t := unix.Termios{
 		Iflag:  unix.IGNPAR,
 		Cflag:  cflagToUse,
@@ -119,45 +185,8 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 		0,
 		0,
 	); errno != 0 {
-		return nil, errno
+		return fmt.Errorf("cannot call IOCTL TCSETS: errno %d", errno)
 	}
 
-	if err = unix.SetNonblock(int(fd), false); err != nil {
-		return
-	}
-
-	return &Port{f: f}, nil
-}
-
-type Port struct {
-	// We intentionally do not use an "embedded" struct so that we don't export File
-	f *os.File
-}
-
-func (p *Port) Read(b []byte) (n int, err error) {
-	return p.f.Read(b)
-}
-
-func (p *Port) Write(b []byte) (n int, err error) {
-	return p.f.Write(b)
-}
-
-// Discards data written to the port but not transmitted, or data received but not read
-func (p *Port) Flush() error {
-	const TCFLSH = 0x540B
-	_, _, errno := unix.Syscall(
-		unix.SYS_IOCTL,
-		uintptr(p.f.Fd()),
-		uintptr(TCFLSH),
-		uintptr(unix.TCIOFLUSH),
-	)
-
-	if errno == 0 {
-		return nil
-	}
-	return errno
-}
-
-func (p *Port) Close() (err error) {
-	return p.f.Close()
+	return nil
 }

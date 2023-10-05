@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	serial "github.com/FObersteiner/goserial"
+	serial "github.com/kibab/goserial"
 )
 
 func TestConnection(t *testing.T) {

@@ -26,65 +26,13 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 	fd := C.int(f.Fd())
 	if C.isatty(fd) != 1 {
 		f.Close()
-		return nil, errors.New("File is not a tty")
+		return nil, errors.New("file is not a tty")
 	}
 
 	var st C.struct_termios
-	_, err = C.tcgetattr(fd, &st)
-	if err != nil {
-		f.Close()
+	if _, err := C.tcgetattr(fd, &st); err != nil {
 		return nil, err
 	}
-	var speed C.speed_t
-	switch baud {
-	case 115200:
-		speed = C.B115200
-	case 57600:
-		speed = C.B57600
-	case 38400:
-		speed = C.B38400
-	case 19200:
-		speed = C.B19200
-	case 9600:
-		speed = C.B9600
-	case 4800:
-		speed = C.B4800
-	case 2400:
-		speed = C.B2400
-	case 1200:
-		speed = C.B1200
-	case 600:
-		speed = C.B600
-	case 300:
-		speed = C.B300
-	case 200:
-		speed = C.B200
-	case 150:
-		speed = C.B150
-	case 134:
-		speed = C.B134
-	case 110:
-		speed = C.B110
-	case 75:
-		speed = C.B75
-	case 50:
-		speed = C.B50
-	default:
-		f.Close()
-		return nil, fmt.Errorf("Unknown baud rate %v", baud)
-	}
-
-	_, err = C.cfsetispeed(&st, speed)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	_, err = C.cfsetospeed(&st, speed)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-
 	// Turn off break interrupts, CR->NL, Parity checks, strip, and IXON
 	st.c_iflag &= ^C.tcflag_t(C.BRKINT | C.ICRNL | C.INPCK | C.ISTRIP | C.IXOFF | C.IXON | C.PARMRK)
 
@@ -167,8 +115,11 @@ func openPort(name string, baud int, databits byte, parity Parity, stopbits Stop
 		                        return nil, os.NewError(s)
 				}
 	*/
-
-	return &Port{f: f}, nil
+	port := &Port{f: f}
+	if err := port.SetSpeed(baud); err != nil {
+		return nil, err
+	}
+	return port, nil
 }
 
 type Port struct {
@@ -192,4 +143,62 @@ func (p *Port) Flush() error {
 
 func (p *Port) Close() (err error) {
 	return p.f.Close()
+}
+
+func (p *Port) SetSpeed(baud int) error {
+	fd := C.int(p.f.Fd())
+	var st C.struct_termios
+	if _, err := C.tcgetattr(fd, &st); err != nil {
+		return err
+	}
+	var speed C.speed_t
+	switch baud {
+	case 115200:
+		speed = C.B115200
+	case 57600:
+		speed = C.B57600
+	case 38400:
+		speed = C.B38400
+	case 19200:
+		speed = C.B19200
+	case 9600:
+		speed = C.B9600
+	case 4800:
+		speed = C.B4800
+	case 2400:
+		speed = C.B2400
+	case 1200:
+		speed = C.B1200
+	case 600:
+		speed = C.B600
+	case 300:
+		speed = C.B300
+	case 200:
+		speed = C.B200
+	case 150:
+		speed = C.B150
+	case 134:
+		speed = C.B134
+	case 110:
+		speed = C.B110
+	case 75:
+		speed = C.B75
+	case 50:
+		speed = C.B50
+	default:
+		// Mac OS X allows baud rates of at least 921600, although these are not listed in termios.h.
+		speed = C.ulong(baud)
+	}
+
+	if _, err := C.cfsetispeed(&st, speed); err != nil {
+		return err
+	}
+	if _, err := C.cfsetospeed(&st, speed); err != nil {
+		return err
+	}
+
+	if _, err := C.tcsetattr(fd, C.TCSANOW, &st); err != nil {
+		return fmt.Errorf("tcsetattr(): %w", err)
+	}
+	return nil
 }
